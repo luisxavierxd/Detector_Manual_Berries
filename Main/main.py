@@ -193,7 +193,7 @@ if circulos is not None:
         fill_ratio   = np.sum(solapamiento > 0) / area_circulo
 
         # Aceptar solo si al menos 42% del circulo es color de berry madura
-        if fill_ratio >= 0.42:
+        if fill_ratio >= 0.55:
             berries_maduras.append({"centro": (cx, cy), "radio": r, "fill": round(fill_ratio, 2)})
 
 # ─────────────────────────────────────────────────────────────────────────────
