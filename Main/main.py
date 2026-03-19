@@ -1,4 +1,6 @@
 # Librerias
+import matplotlib
+matplotlib.use('Agg')
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13,14 +15,28 @@ img = cv2.imread("frambuesas.jpg")
 # Convertir a RGB para visualizar correctamente con matplotlib
 img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-# Convertir a HSV para hacer las mascaras de color
-# HSV es mejor que RGB para segmentar por color porque separa
-# el tono (H) de la iluminacion (V), lo que hace las mascaras
-# mas robustas ante cambios de luz
-img_hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+# ─────────────────────────────────────────────────────────────────────────────
+# ESCALADO DE IMAGEN
+# HoughCircles es muy lento con radios grandes en imagenes de alta resolucion
+# porque su acumulador interno crece de forma no lineal con el radio maximo.
+# La solucion es reducir la imagen antes de procesar para que los radios
+# originales (535-103 px) sigan siendo validos, y escalar las coordenadas
+# de vuelta al final para dibujar sobre la imagen original.
+# ─────────────────────────────────────────────────────────────────────────────
 
-# Convertir a escala de grises (se usa para detectar nitidez y circulos)
-img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+# Factor de escala: ajustar segun resolucion de la imagen
+# 0.5 = mitad del tamaño original
+ESCALA = 1
+
+h, w = img.shape[:2]
+
+# Crear versiones escaladas de todas las imagenes necesarias
+img_scaled      = cv2.resize(img,     (int(w * ESCALA), int(h * ESCALA)))
+img_rgb_scaled  = cv2.resize(img_rgb, (int(w * ESCALA), int(h * ESCALA)))
+
+# Convertir a HSV y gris sobre la imagen escalada
+img_hsv_scaled  = cv2.cvtColor(img_scaled, cv2.COLOR_BGR2HSV)
+img_gray_scaled = cv2.cvtColor(img_scaled, cv2.COLOR_BGR2GRAY)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # MASCARA DE NITIDEZ (SHARPNESS MASK)
@@ -30,20 +46,17 @@ img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 # tienen gradiente alto, el fondo bokeh tiene gradiente casi cero
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Calcular el Laplaciano de la imagen gris
+# Calcular el Laplaciano de la imagen gris escalada
 # cv2.CV_64F permite valores negativos (se usa valor absoluto despues)
-laplaciano = cv2.Laplacian(img_gray, cv2.CV_64F) #variable 64 bits
-#plt.imshow(laplaciano, cmap="gray")
-#plt.show()
+laplaciano = cv2.Laplacian(img_gray_scaled, cv2.CV_64F)
 
 # Valor absoluto para quedarnos solo con la magnitud del gradiente
-sharpness_map = np.abs(laplaciano).astype(np.float32) #32 absoluto
+sharpness_map = np.abs(laplaciano).astype(np.float32)
 
 # Suavizar el mapa de nitidez para que las zonas enfocadas
-# formen regions continuas en lugar de puntos dispersos
+# formen regiones continuas en lugar de puntos dispersos
 sharpness_blur = cv2.GaussianBlur(sharpness_map, (41, 41), 0)
-plt.imshow(sharpness_blur, cmap="gray")
-plt.show()
+
 # Normalizar a rango 0-255 para poder umbralizar
 sharpness_norm = cv2.normalize(sharpness_blur, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
 
@@ -86,12 +99,13 @@ high_inmadura_salmon = np.array([22, 255, 255])
 # ─────────────────────────────────────────────────────────────────────────────
 # MASCARAS DE COLOR
 # cv2.inRange devuelve 255 donde el pixel esta dentro del rango, 0 fuera
+# Todas las mascaras se calculan sobre la imagen escalada
 # ─────────────────────────────────────────────────────────────────────────────
 
 ## Mascaras individuales de maduras
-mascara_madura_a = cv2.inRange(img_hsv, low_madura_a, high_madura_a)
-mascara_madura_b = cv2.inRange(img_hsv, low_madura_b, high_madura_b)
-mascara_madura_c = cv2.inRange(img_hsv, low_madura_c, high_madura_c)
+mascara_madura_a = cv2.inRange(img_hsv_scaled, low_madura_a, high_madura_a)
+mascara_madura_b = cv2.inRange(img_hsv_scaled, low_madura_b, high_madura_b)
+mascara_madura_c = cv2.inRange(img_hsv_scaled, low_madura_c, high_madura_c)
 
 # Combinar los tres rangos con OR (cualquiera de los tres es madura)
 mascara_madura_color = cv2.bitwise_or(mascara_madura_a, mascara_madura_b)
@@ -101,8 +115,8 @@ mascara_madura_color = cv2.bitwise_or(mascara_madura_color, mascara_madura_c)
 mascara_madura = cv2.bitwise_and(mascara_madura_color, mascara_nitidez)
 
 ## Mascaras individuales de inmaduras
-mascara_inmadura_verde  = cv2.inRange(img_hsv, low_inmadura_verde,  high_inmadura_verde)
-mascara_inmadura_salmon = cv2.inRange(img_hsv, low_inmadura_salmon, high_inmadura_salmon)
+mascara_inmadura_verde  = cv2.inRange(img_hsv_scaled, low_inmadura_verde,  high_inmadura_verde)
+mascara_inmadura_salmon = cv2.inRange(img_hsv_scaled, low_inmadura_salmon, high_inmadura_salmon)
 
 # Combinar verde y salmon con OR
 mascara_inmadura_color = cv2.bitwise_or(mascara_inmadura_verde, mascara_inmadura_salmon)
@@ -135,9 +149,9 @@ mascara_inmadura_limpia = cv2.morphologyEx(mascara_inmadura, cv2.MORPH_OPEN,  ke
 mascara_inmadura_limpia = cv2.morphologyEx(mascara_inmadura_limpia, cv2.MORPH_CLOSE, kernel_7, iterations=2)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# DETECCION DE BERRIES MADURAS — HoughCircles sobre imagen gris
+# DETECCION DE BERRIES MADURAS — HoughCircles sobre imagen gris escalada
 #
-# Se corre HoughCircles sobre la imagen gris original (no sobre la mascara)
+# Se corre HoughCircles sobre la imagen gris escalada (no sobre la mascara)
 # porque los drupelets de la frambuesa crean huecos en la mascara que
 # rompen la deteccion por contornos. El gradiente circular existe en la
 # imagen gris aunque la mascara tenga huecos.
@@ -147,8 +161,8 @@ mascara_inmadura_limpia = cv2.morphologyEx(mascara_inmadura_limpia, cv2.MORPH_CL
 # Si el circulo no cubre suficiente color de berry, se descarta
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Suavizar imagen gris para reducir falsos bordes de drupelets
-img_gray_blur = cv2.GaussianBlur(img_gray, (5, 5), 0)
+# Suavizar imagen gris escalada para reducir falsos bordes de drupelets
+img_gray_blur = cv2.GaussianBlur(img_gray_scaled, (5, 5), 0)
 
 # HoughCircles: busca circulos por acumulacion de gradientes
 # dp=1.3       : resolucion del acumulador (1=igual a imagen, >1=mas rapido)
@@ -174,7 +188,7 @@ if circulos is not None:
         cv2.circle(mascara_circulo, (cx, cy), r, 255, -1)
 
         # Contar pixeles de color madura dentro del circulo
-        solapamiento = cv2.bitwise_and(mascara_madura_limpia, mascara_circulo)  # te da el círculo con areas rellenas de color madura y vacías
+        solapamiento = cv2.bitwise_and(mascara_madura_limpia, mascara_circulo)
         area_circulo = np.pi * r * r
         fill_ratio   = np.sum(solapamiento > 0) / area_circulo
 
@@ -196,8 +210,8 @@ if circulos is not None:
 # porque los drupelets hacen el contorno muy irregular (circ baja),
 # pero el hull del conjunto es casi circular (circ alta)
 #
-# Hojas: hull_circ < 0.75 (formas alargadas o irregulares)
-# Berries: hull_circ >= 0.75
+# Hojas: hull_circ < 0.78 (formas alargadas o irregulares)
+# Berries: hull_circ >= 0.78
 # ─────────────────────────────────────────────────────────────────────────────
 
 contornos, _ = cv2.findContours(mascara_inmadura_limpia, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -222,7 +236,7 @@ for contorno in contornos:
     hull_circ = (4 * np.pi * area_hull) / (perim_hull ** 2)
 
     # Descartar si la forma no es suficientemente circular
-    # 0.75 separa berries (0.82-0.92) de hojas y fragmentos (<0.75)
+    # 0.78 separa berries (0.82-0.92) de hojas y fragmentos (<0.75)
     if hull_circ < 0.78:
         continue
 
@@ -230,10 +244,10 @@ for contorno in contornos:
     (cx, cy), r = cv2.minEnclosingCircle(contorno)
 
     berries_inmaduras.append({
-        "centro":   (int(cx), int(cy)),
-        "radio":    int(r),
+        "centro":    (int(cx), int(cy)),
+        "radio":     int(r),
         "hull_circ": round(hull_circ, 2),
-        "contorno": contorno
+        "contorno":  contorno
     })
 
 # Imprimir resultados en consola
@@ -241,39 +255,60 @@ print(f"Berries maduras detectadas:   {len(berries_maduras)}")
 print(f"Berries inmaduras detectadas: {len(berries_inmaduras)}")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# DIBUJAR RESULTADOS SOBRE LA IMAGEN
+# DIBUJAR RESULTADOS SOBRE LA IMAGEN ORIGINAL (SIN ESCALAR)
+# Las coordenadas detectadas en la imagen escalada se multiplican por
+# 1/ESCALA para volver al espacio de la imagen original
 # ─────────────────────────────────────────────────────────────────────────────
 
 resultado = img_rgb.copy()
 
 # Dibujar circulos rojos para maduras
 for berry in berries_maduras:
-    cv2.circle(resultado, berry["centro"], berry["radio"], (220, 30, 30), 3)
-    cv2.circle(resultado, berry["centro"], 5, (220, 30, 30), -1)
+    # Escalar coordenadas de vuelta a la resolucion original
+    cx = int(berry["centro"][0] / ESCALA)
+    cy = int(berry["centro"][1] / ESCALA)
+    r  = int(berry["radio"]     / ESCALA)
+
+    cv2.circle(resultado, (cx, cy), r, (220, 30, 30), 3)
+    cv2.circle(resultado, (cx, cy), 5, (220, 30, 30), -1)
     cv2.putText(resultado, "Madura",
-                (berry["centro"][0] - 28, berry["centro"][1] - berry["radio"] - 8),
+                (cx - 28, cy - r - 8),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.55, (220, 30, 30), 2)
 
 # Dibujar circulos verdes para inmaduras + contorno exacto
 for berry in berries_inmaduras:
-    cv2.circle(resultado, berry["centro"], berry["radio"], (30, 200, 50), 3)
-    cv2.drawContours(resultado, [berry["contorno"]], -1, (80, 230, 80), 2)
-    cv2.circle(resultado, berry["centro"], 5, (30, 200, 50), -1)
+    # Escalar coordenadas de vuelta a la resolucion original
+    cx = int(berry["centro"][0] / ESCALA)
+    cy = int(berry["centro"][1] / ESCALA)
+    r  = int(berry["radio"]     / ESCALA)
+
+    # Escalar el contorno multiplicando todos sus puntos por 1/ESCALA
+    contorno_escalado = (berry["contorno"] / ESCALA).astype(np.int32)
+
+    cv2.circle(resultado, (cx, cy), r, (30, 200, 50), 3)
+    cv2.drawContours(resultado, [contorno_escalado], -1, (80, 230, 80), 2)
+    cv2.circle(resultado, (cx, cy), 5, (30, 200, 50), -1)
     cv2.putText(resultado, "Inmadura",
-                (berry["centro"][0] - 38, berry["centro"][1] - berry["radio"] - 8),
+                (cx - 38, cy - r - 8),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (30, 200, 50), 2)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HIGHLIGHTS (estilo del codigo original)
 # Imagen en gris + color aislado encima para resaltar las detecciones
+# Se escalan las mascaras de vuelta al tamaño original para el highlight
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Convertir gris a 3 canales para poder mezclarlo con imagen color
-img_gray_3c = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2RGB)
+# Escalar mascaras limpias de vuelta al tamaño original
+mascara_madura_orig   = cv2.resize(mascara_madura_limpia,   (w, h), interpolation=cv2.INTER_NEAREST)
+mascara_inmadura_orig = cv2.resize(mascara_inmadura_limpia, (w, h), interpolation=cv2.INTER_NEAREST)
 
-# Aislar solo los pixeles de cada mascara sobre la imagen color
-aislado_madura   = cv2.bitwise_and(img_rgb, img_rgb, mask=mascara_madura_limpia)
-aislado_inmadura = cv2.bitwise_and(img_rgb, img_rgb, mask=mascara_inmadura_limpia)
+# Convertir gris original a 3 canales para mezclarlo con imagen color
+img_gray_original = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+img_gray_3c       = cv2.cvtColor(img_gray_original, cv2.COLOR_GRAY2RGB)
+
+# Aislar solo los pixeles de cada mascara sobre la imagen color original
+aislado_madura   = cv2.bitwise_and(img_rgb, img_rgb, mask=mascara_madura_orig)
+aislado_inmadura = cv2.bitwise_and(img_rgb, img_rgb, mask=mascara_inmadura_orig)
 
 # Mezclar gris con color aislado (misma tecnica del codigo original)
 highlight_madura   = cv2.addWeighted(img_gray_3c, 0.5, aislado_madura,   1.4, 0)
@@ -284,9 +319,9 @@ highlight_inmadura = cv2.addWeighted(img_gray_3c, 0.5, aislado_inmadura, 1.4, 0)
 # ─────────────────────────────────────────────────────────────────────────────
 
 imagenes = [img_rgb,
-            mascara_madura_limpia,
+            mascara_madura_orig,
             resultado,
-            mascara_inmadura_limpia,
+            mascara_inmadura_orig,
             highlight_madura,
             highlight_inmadura]
 
@@ -308,4 +343,5 @@ for i, (imagen, titulo, cmap) in enumerate(zip(imagenes, titulos, cmaps)):
     plt.axis("off")
 
 plt.tight_layout()
-plt.show()
+plt.savefig("resultado.png", dpi=130, bbox_inches="tight")
+plt.close()
