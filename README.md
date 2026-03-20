@@ -4,7 +4,7 @@ Detecta y clasifica frambuesas **maduras** e **inmaduras** en una imagen usando 
 
 ## Presentacion del proyecto
 
-[![Canva](https://img.shields.io/badge/Ver%20en-Canva-blueviolet?logo=canva)](https://www.canva.com/design/DAHEaX5SDq8/kJl_glwjw6bSAkRAkvZQ4A/view)
+[![Canva](https://img.shields.io/badge/Ver%20en-Canva-blueviolet?logo=canva)]([https://www.canva.com/design/DAHEaX5SDq8/kJl_glwjw6bSAkRAkvZQ4A/view](https://www.canva.com/design/DAHEaX5SDq8/kJl_glwjw6bSAkRAkvZQ4A/edit?utm_content=DAHEaX5SDq8&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton))
 
 ## Resultados
 
