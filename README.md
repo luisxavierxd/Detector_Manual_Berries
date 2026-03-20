@@ -2,6 +2,10 @@
 
 Detecta y clasifica frambuesas **maduras** e **inmaduras** en una imagen usando OpenCV y matplotlib. No requiere modelo de deep learning.
 
+## Presentacion del proyecto
+
+https://www.canva.com/design/DAHEaX5SDq8/kJl_glwjw6bSAkRAkvZQ4A/edit?utm_content=DAHEaX5SDq8&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton
+
 ## Resultados
 
 | Archivo | Contenido |
