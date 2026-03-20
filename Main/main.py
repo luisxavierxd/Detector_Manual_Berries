@@ -238,9 +238,9 @@ if circulos is not None:
 # ===========================================================================
 # 8. DETECCIÓN DE BERRIES INMADURAS — Contornos + Hull Circularity
 #
-# Se usan contornos porque los clusters verdes forman blobs más compactos.
+# Se usan contornos porque las inmaduras forman círculos más compactos.
 #
-# hull_circularity = 4π · Área_hull / Perímetro_hull²  ∈ (0, 1]
+# hull_circularity = 4π * Área_hull / Perímetro_hull²  ∈ (0, 1]
 #   1.0 = círculo perfecto.
 # Se usa el hull convexo porque los drupelets hacen el contorno muy
 # irregular, pero el hull del conjunto es casi circular.
@@ -435,7 +435,7 @@ for b in berries_inmaduras:
     cv2.drawContours(viz_contornos, [b["contorno"]], -1, (80, 230, 80), 2)
 
 # ── Figura 1: pasos compartidos ──────────────────────────────────────────
-
+ 
 imgs1 = [img_rgb_scaled, img_gray_scaled,
          laplaciano_viz_raw, laplaciano_viz_abs, sharpness_norm,
          mascara_nitidez]
@@ -443,16 +443,16 @@ titulos1 = ["1 · Original", "2 · Escala de grises",
             "3 · Laplaciano (CV_64F)", "4 · |Laplaciano| (abs)",
             "5 · Normalizado 0-255 (suavizado)", "6 · Máscara nitidez (umbral=12)"]
 cmaps1 = [None, "gray", "bwr", "hot", "hot", "gray"]
-
+ 
 fig1, axes1 = plt.subplots(6, 1, figsize=(7, 21))
 fig1.suptitle("Pipeline — pasos compartidos", fontsize=12, fontweight="bold")
-
+ 
 for ax, img, titulo, cmap in zip(axes1, imgs1, titulos1, cmaps1):
     ax.imshow(img, cmap=cmap)
     ax.set_title(titulo, fontsize=10)
     ax.axis("off")
-
-fig1.tight_layout()
+ 
+fig1.tight_layout(rect=[0, 0, 1, 0.97])
 fig1.savefig("pipeline_compartido.png", dpi=110, bbox_inches="tight")
 plt.close(fig1)
 
